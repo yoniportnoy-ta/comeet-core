@@ -40,17 +40,40 @@ def candidate_full_name(candidate: dict[str, Any]) -> str:
     return " ".join(p for p in parts if p)
 
 
-def position_country(position: dict[str, Any]) -> str:
-    """Mirrors `formatPositionCountry_` — country-level bucket for UI filters."""
+def position_country(position: dict[str, Any], *, unknown: str = "") -> str:
+    """The position's country as a full name — "Israel", not "IL".
+
+    Probes `location.country`, then a top-level `country` (string or dict,
+    which some tenants use), then the last segment of the full location, and
+    expands ISO codes at the end. `unknown` is what to return when nothing
+    resolves: callers rendering for people pass "(unknown)", callers
+    bucketing for filters leave it empty.
+
+    The expansion is the point. pipey had its own copy that probed the raw
+    `country` field first and returned the ISO code unexpanded, so 393 of 491
+    positions rendered as "IL"/"CA"/"US" in recruiter-facing reports despite
+    its docstring promising otherwise.
+    """
     loc = position.get("location") or {}
     raw = (loc.get("country") or "").strip()
+
+    if not raw:
+        c = position.get("country")
+        if isinstance(c, str):
+            raw = c.strip()
+        elif isinstance(c, dict):
+            for k in ("name", "country", "code"):
+                v = c.get(k)
+                if isinstance(v, str) and v.strip():
+                    raw = v.strip()
+                    break
+
     if not raw:
         full = position_full_location(position)
-        if not full:
-            return ""
-        segments = [seg.strip() for seg in full.split(",") if seg.strip()]
+        segments = [seg.strip() for seg in (full or "").split(",") if seg.strip()]
         raw = segments[-1] if segments else ""
-    return _expand_country_display(raw)
+
+    return _expand_country_display(raw) if raw else unknown
 
 
 def position_full_location(position: dict[str, Any]) -> str:

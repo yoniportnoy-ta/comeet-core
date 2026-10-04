@@ -137,6 +137,27 @@ class ComeetClient:
             )
         return resp
 
+    # -- generic verbs ------------------------------------------------------
+    @classmethod
+    def from_env(cls, **kwargs: Any) -> "ComeetClient":
+        """Build from the environment, naming what is missing if it cannot."""
+        key, secret, source = load_comeet_credentials()
+        missing = [n for n, v in (("COMEET_API_KEY", key),
+                                  ("COMEET_API_SECRET", secret)) if not v]
+        if missing:
+            raise ComeetError(
+                f"{' and '.join(missing)} not set (looked in: {source})")
+        return cls(api_key=key, api_secret=secret, **kwargs)
+
+    def get(self, path: str, **kwargs: Any) -> Any:
+        """GET and decode JSON. For paths without a typed method of their own."""
+        return self._request("GET", path, **kwargs).json()
+
+    def post(self, path: str, **kwargs: Any) -> Any:
+        """POST and decode JSON, tolerating an empty body."""
+        resp = self._request("POST", path, **kwargs)
+        return resp.json() if (resp.content or b"").strip() else None
+
     # -- high-level methods ------------------------------------------------
     def list_positions(self, status: str | None = None) -> list[dict[str, Any]]:
         """Walk all pages of `/positions`, optionally filtered by status.

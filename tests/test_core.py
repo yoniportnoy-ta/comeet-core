@@ -47,3 +47,29 @@ def test_token_is_hs256_with_key_as_issuer():
     tok = mint_token("KEY", "SECRET", ttl_seconds=60)
     claims = jwt.decode(tok, "SECRET", algorithms=["HS256"])
     assert claims["iss"] == "KEY"
+
+
+def test_country_expands_iso_codes():
+    # The bug this replaced: pipey returned "IL" on 393 of 491 real positions.
+    from comeet.fields import position_country
+    assert position_country({"location": {"country": "IL"}}) == "Israel"
+    assert position_country({"location": {"country": "CA"}}) == "Canada"
+    assert position_country({"location": {"country": "Israel"}}) == "Israel"
+
+
+def test_country_falls_back_to_top_level_field():
+    from comeet.fields import position_country
+    assert position_country({"country": "CA"}) == "Canada"
+    assert position_country({"country": {"code": "US"}}) == "United States"
+
+
+def test_country_sentinel_is_the_callers_choice():
+    from comeet.fields import position_country
+    assert position_country({}) == ""
+    assert position_country({}, unknown="(unknown)") == "(unknown)"
+
+
+def test_location_country_wins_over_top_level():
+    from comeet.fields import position_country
+    p = {"location": {"country": "IL"}, "country": "CA"}
+    assert position_country(p) == "Israel"
